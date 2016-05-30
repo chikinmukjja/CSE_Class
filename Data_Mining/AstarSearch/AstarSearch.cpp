@@ -147,9 +147,12 @@ node* AStarSearch(priority_queue<node>& fringe,const node& Start)
 				fringe.push(makeNode(current, current.posX + dX[i], current.posY + dY[i]));
 				
 			}
-			
-			
-
+		}
+		else 
+		{
+			// 같은 경로로 이미 오거나 갈 예정인 노드에 도착하게 되면 
+			// g`값과 기존의 g를 비교하여 작을 경우 fringe에 삽입하여야한다
+			// 다만, 현재 문제에서는 다시 도착하게 되는 경우는 처음 온 것보다 도 빠르게 도착할 수가 없음 
 		}
 	}
 	
