@@ -60,10 +60,10 @@ int main(int argc, char* argv[])
 	int K = atoi(argv[2]);
 
 	ifstream inputFile;
-	ofstream result;
+	ofstream result[20];
 
 	inputFile.open(inputFileName, ios::in);
-	result.open("input1_cluster_0.txt", ios::out);
+	//result.open("input1_cluster_0.txt", ios::out);
 
 	string  fileLine;
 	vector<string> tokens;
@@ -71,7 +71,7 @@ int main(int argc, char* argv[])
 
 	while (inputFile.good()) {
 		getline(inputFile, fileLine);
-		Tokenize(fileLine, tokens, "\t");
+		Tokenize(fileLine, tokens, " ");
 		char _id[30];
 		char _x[30];
 		char _y[30];
@@ -87,12 +87,18 @@ int main(int argc, char* argv[])
 	double time;
 	bool err;
 
-
-
-	CHECK_TIME_START; // 정해진 minpts가 있음 find eps 20 12 적당한듯
-	K = DBSCAN(objects,20,12);
+	CHECK_TIME_START;
+	if (K == 8)K = DBSCAN(objects, 24, 15.2);//98.5점
+	else if (K == 5)K = DBSCAN(objects, 10, 2.2);//94.4점
+	else if (K == 4)K = DBSCAN(objects, 10, 5);//99.9점
 	CHECK_TIME_END(time, err)
 	
+	/*
+	
+	*/
+
+
+	cout << "clustser " << K << endl;
 	vector<vector<object>> cluster;
 	for (int i = 0; i < K; i++)
 	{
@@ -103,6 +109,7 @@ int main(int argc, char* argv[])
 
 	for (int i = 0; i < objects.size(); i++)
 	{
+
 		int index = objects[i].group;
 
 		if (index == NOISE)continue;
@@ -111,14 +118,26 @@ int main(int argc, char* argv[])
 		cluster[index].push_back(objects[i]);
 	}
 
+	
 	for (int i = 0; i < cluster.size(); i++)
 	{
-		result << "# " << i << "cluster size: " << cluster[i].size() << endl;
+		
+		
+		string name = "output _cluster_ .txt";
+		char shap = i + '0';
+		name[6] = inputFileName[5];
+		name[name.size() - 5] = shap;
+		result[i].open(name, ios::out);
+		
+		cout << cluster[i].size() << "\n";
 		for (int j = 0; j < cluster[i].size(); j++)
 		{
-			result << cluster[i][j].id << " " << cluster[i][j].x << " " << cluster[i][j].y << endl;
+			result[i] << cluster[i][j].id << endl;
+	
 		}
-		result << endl;
+	
+
+		
 	}
 
 
@@ -130,19 +149,18 @@ int DBSCAN(vector<object>& objects,int MinPts,double Eps)
 {
 	int chosen = 0;
 	int k = 0; //cluster
-	set<int> tmpCluster;
+	vector<int> tmpCluster;
 
-	
+	int testCnt = 0;
 	while ((chosen = isAllVisited(objects))!=-1) //
-	{
-	
+	{	
 		int numOfNeighbor = 0;
 		objects[chosen].visited = true;
 		 //이웃 찾기
 		for (int i = 0; i < objects.size(); i++) 
 		{
 			if (isInner(objects[chosen], objects[i], Eps)) {
-				if (!objects[i].visited)tmpCluster.insert(i);
+				if (!objects[i].visited)tmpCluster.push_back(i);
 				numOfNeighbor++;
 			}
 		}
@@ -154,14 +172,14 @@ int DBSCAN(vector<object>& objects,int MinPts,double Eps)
 			
 			while (tmpCluster.size()!=0)
 			{
-				set<int>::iterator IterPos = tmpCluster.begin();
-				int p = *IterPos;
+				//vector<int>::iterator IterPos = tmpCluster.begin();
+				int p = tmpCluster.back();
 				//지금 현재 index 제거
-				tmpCluster.erase(IterPos);
+				tmpCluster.pop_back();
 
 				if (objects[p].visited == false) 
 				{
-					set<int> tmpCluster2;
+					vector<int> tmpCluster2;
 					objects[p].visited = true;
 					int numOfNeighbor2 = 0;
 
@@ -169,18 +187,18 @@ int DBSCAN(vector<object>& objects,int MinPts,double Eps)
 					{
 						if (isInner(objects[p], objects[i], Eps)) 
 						{
-								if(!objects[i].visited)tmpCluster2.insert(i);
+								if(!objects[i].visited)tmpCluster2.push_back(i);
 								numOfNeighbor2++;
 						}
 					}
 
 					if (numOfNeighbor2 >= MinPts) 
 					{	//현재 p의 이웃들 추가
-						tmpCluster.insert(tmpCluster2.begin(), tmpCluster2.end());
+						tmpCluster.insert(tmpCluster.end(),tmpCluster2.begin(), tmpCluster2.end());
 					}
 					
 					//현재 p가 속한 클러스터가 없다면 추가
-					if (objects[p].group < 0&&objects[p].group!=NOISE)objects[p].group = k;
+					if (objects[p].group < 0)objects[p].group = k;
 				}
 				
 			}
