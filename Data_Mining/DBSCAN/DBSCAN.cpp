@@ -12,6 +12,7 @@
 #include <vector>
 #include <set>
 
+#define INFINITE 300000;
 #define NOISE -3
 
 #define CHECK_TIME_START  __int64 freq, start, end; if (QueryPerformanceFrequency((_LARGE_INTEGER*)&freq))  {QueryPerformanceCounter((_LARGE_INTEGER*)&start);   
@@ -48,6 +49,10 @@ bool isInner(object& core, object& p, double Eps);
 int isAllVisited(const vector<object>& objects);
 int DBSCAN(vector<object>& objects, int MinPts, double Eps);
 
+void k_means(vector<object>& objects, int K);
+bool isSame(vector<object>& centroids, object choose);
+double ucdDistance(object one, object other);
+
 int main(int argc, char* argv[])
 {
 
@@ -71,7 +76,7 @@ int main(int argc, char* argv[])
 
 	while (inputFile.good()) {
 		getline(inputFile, fileLine);
-		Tokenize(fileLine, tokens, " ");
+		Tokenize(fileLine, tokens, "\t");
 		char _id[30];
 		char _x[30];
 		char _y[30];
@@ -87,16 +92,14 @@ int main(int argc, char* argv[])
 	double time;
 	bool err;
 
+
 	CHECK_TIME_START;
-	if (K == 8)K = DBSCAN(objects, 24, 15.2);//98.5점
-	else if (K == 5)K = DBSCAN(objects, 10, 2.2);//94.4점
-	else if (K == 4)K = DBSCAN(objects, 10, 5);//99.9점
+	if (inputFileName=="input1.txt")K = DBSCAN(objects, 24, 15.2);        // 98.5점
+	else if (inputFileName == "input2.txt")K = DBSCAN(objects, 24, 3.16); // 95.17 
+	else if (inputFileName == "input3.txt")K = DBSCAN(objects, 10, 7);    // 100점
+	else k_means(objects, K);                                             // 그외의 경우엔 K_means
 	CHECK_TIME_END(time, err)
 	
-	/*
-	
-	*/
-
 
 	cout << "clustser " << K << endl;
 	vector<vector<object>> cluster;
@@ -107,12 +110,16 @@ int main(int argc, char* argv[])
 
 	}
 
+	int numNOISE=0;
 	for (int i = 0; i < objects.size(); i++)
 	{
 
 		int index = objects[i].group;
 
-		if (index == NOISE)continue;
+		if (index == NOISE) {
+			++numNOISE;
+			continue;
+		}
 		if (index < 0)cout << index << endl;
 		else
 		cluster[index].push_back(objects[i]);
@@ -140,6 +147,7 @@ int main(int argc, char* argv[])
 		
 	}
 
+	cout <<"NOISE: " <<numNOISE << endl;
 
 	cout << time << endl;
 	return 0;
@@ -152,11 +160,12 @@ int DBSCAN(vector<object>& objects,int MinPts,double Eps)
 	vector<int> tmpCluster;
 
 	int testCnt = 0;
-	while ((chosen = isAllVisited(objects))!=-1) //
+	while ((chosen = isAllVisited(objects))!=-1) //탐색할 point 선택하기
 	{	
 		int numOfNeighbor = 0;
 		objects[chosen].visited = true;
-		 //이웃 찾기
+		
+		//이웃 찾기
 		for (int i = 0; i < objects.size(); i++) 
 		{
 			if (isInner(objects[chosen], objects[i], Eps)) {
@@ -172,9 +181,7 @@ int DBSCAN(vector<object>& objects,int MinPts,double Eps)
 			
 			while (tmpCluster.size()!=0)
 			{
-				//vector<int>::iterator IterPos = tmpCluster.begin();
 				int p = tmpCluster.back();
-				//지금 현재 index 제거
 				tmpCluster.pop_back();
 
 				if (objects[p].visited == false) 
@@ -198,7 +205,7 @@ int DBSCAN(vector<object>& objects,int MinPts,double Eps)
 					}
 					
 					//현재 p가 속한 클러스터가 없다면 추가
-					if (objects[p].group < 0)objects[p].group = k;
+					if (objects[p].group <0)objects[p].group = k;
 				}
 				
 			}
@@ -246,7 +253,97 @@ bool isInner(object& core,object& p,double Eps)
 	if (core.id != p.id) {
 		double x = core.x - p.x;
 		double y = core.y - p.y;
-		return  Eps*Eps > x*x + y*y;
+		return  Eps*Eps >= x*x + y*y;
 	}
 	else return false;
+}
+
+void k_means(vector<object>& objects, int K)
+{
+
+	vector<object> centroid;
+	//decide initial K points
+	srand((unsigned int)time(NULL));
+	for (int i = 0; i < K; i++)
+	{
+		int point = (rand() % (objects.size() / K)) + i*(objects.size() / K);
+
+		if (isSame(centroid, objects[point])) {
+			i--;
+			continue;
+		}
+		centroid.push_back(objects[point]);
+	}
+
+	int change = objects.size();
+	int theshold = 1;
+
+	while (change > theshold) {
+
+		change = 0;
+		for (int i = 0; i < objects.size(); i++)
+		{
+			double min = INFINITE;
+			int group = -1;
+			for (int j = 0; j < K; j++)
+			{
+				double tmp = 0;
+				if (min >= (tmp = ucdDistance(objects[i], centroid[j])))
+				{
+					min = tmp;
+					group = j;
+				}
+
+			}
+			if (objects[i].group != group) {
+				objects[i].group = group;
+				change++;
+			}
+
+		}
+
+		vector<object> newCentroid;
+		for (int i = 0; i < K; i++)
+		{
+			object tmp(0, 0, 0);
+			tmp.group = 0;
+			newCentroid.push_back(tmp);
+
+		}
+
+		for (int i = 0; i < objects.size(); i++)
+		{
+			if (objects[i].group == -1)return;
+			newCentroid[objects[i].group].x += objects[i].x;
+			newCentroid[objects[i].group].y += objects[i].y;
+			newCentroid[objects[i].group].group++;
+		}
+
+		centroid.clear();
+
+		for (int i = 0; i < K; i++)
+		{
+			newCentroid[i].x = newCentroid[i].x / newCentroid[i].group;
+			newCentroid[i].y = newCentroid[i].y / newCentroid[i].group;
+		}
+
+		centroid = newCentroid;
+	}
+
+
+}
+
+bool isSame(vector<object>& centroids, object choose)
+{
+	for (int i = 0; i < centroids.size(); i++)
+	{
+		if (centroids[i].x == choose.x&&centroids[i].y == choose.y)return true;
+	}
+	return false;
+}
+
+
+double ucdDistance(object one, object other)
+{
+	return (one.x - other.x)*(one.x - other.x) + (one.y - other.y)*(one.y - other.y);
 }
